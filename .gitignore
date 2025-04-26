@@ -1,0 +1,12 @@
+__pycache__
+*.zip
+*.fit
+*.fits
+.DS_Store
+/SAOImageDS9
+.ipynb_checkpoints/
+ref/
+*.png
+*.jpg
+*.jpeg
+*.pdf
