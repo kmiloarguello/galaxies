@@ -15,7 +15,7 @@ from astropy.modeling import models, fitting
 
 
 
-def master_bias(list_bias, out_name ='', out_dir = '', overwrite = 1):
+def master_bias(list_bias, out_name ='', out_dir = '', overwrite = 1, sigma=5, out_master_bias_no_sigma = ''):
     #on ouvre le premier fichier de list_bias pour obtenir la forme de chaque master bias
     shape_bias =  np.shape(fits.getdata(list_bias[0]))
     n_bias = len(list_bias)
@@ -25,15 +25,20 @@ def master_bias(list_bias, out_name ='', out_dir = '', overwrite = 1):
     for b,i in zip(list_bias,range(n_bias)):
         master_bias_list[i,:,:]= fits.getdata(b)
     # le master bias contient, en chaque pixel, la mediane de la valeur de ce pixel dans chacune des poses de bias 
-    master_bias = sigma_clip(master_bias_list, sigma=5, maxiters=5,axis=0,masked=False)
-    master_bias = np.nanmedian(master_bias_list,axis=0)
+    master_bias_no_sigma = np.nanmedian(master_bias_list,axis=0)
+    master_bias = sigma_clip(master_bias_list, sigma=sigma,maxiters=5,axis=0,masked=False)
+    master_bias = np.nanmedian(master_bias_list, axis=0)
     if len(out_name)>0:
         ## on enregistre le master bias dans un nouveau fichier fits
         hdu = fits.PrimaryHDU(master_bias)
         hdu.writeto(out_dir + out_name, overwrite = overwrite)
         print(f'le master bias a été sauvé en {out_dir + out_name}')
-    return master_bias, out_dir + out_name
-   
+    if (len(out_master_bias_no_sigma)>0):
+        ## on enregistre le master bias dans un nouveau fichier fits
+        hdu = fits.PrimaryHDU(master_bias_no_sigma)
+        hdu.writeto(out_dir + out_master_bias_no_sigma, overwrite = overwrite)
+        print(f'le master bias sans sigma a été sauvé en {out_master_bias_no_sigma}')
+    return master_bias, out_dir + out_name, master_bias_no_sigma
 
 
 def master_flat(list_flat, master_bias_name, out_name ='', out_dir = '', overwrite = 1):
