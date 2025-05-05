@@ -85,6 +85,10 @@ def plot_bias_hist(filename, galaxie_name, bins=1000):
     if offset_data_bias is None:
         print("Aucune image à afficher.")
         return
+    
+    hist_values, bin_edges = np.histogram(offset_data_bias.flatten(), bins=bins)
+    peak_bin_index = np.argmax(hist_values) # Index of the peak bin
+    peak_x = (bin_edges[peak_bin_index] + bin_edges[peak_bin_index + 1]) / 2 # X value of the peak bin
 
     fig, (ax_im, ax_hist) = plt.subplots(1, 2, figsize=(12, 4))
 
@@ -98,12 +102,14 @@ def plot_bias_hist(filename, galaxie_name, bins=1000):
     cbar.set_label('ADU', fontsize=10)
 
     ax_hist.hist(offset_data_bias.flatten(), bins=bins, color='blue')
+    ax_hist.axvline(x=peak_x, color='red', linestyle='--', label=f'Pic à {peak_x:.2f} ADU')
     ax_hist.loglog()
     ax_hist.set_xlabel('ADU', fontsize=10)
     ax_hist.set_ylabel('Nombre de pixels', fontsize=10)
     ax_hist.set_title('Histogramme Bias (offset)', fontsize=10)
     ax_hist.grid(True)
 
+    plt.legend()
     plt.tight_layout()
     plt.show()
 
