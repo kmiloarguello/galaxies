@@ -175,6 +175,43 @@ def plot_bias_hist_sigma_stack(files, sigma=2):
     plt.tight_layout()
     plt.show()
 
+def plot_master_plat_hist(filename, galaxie_name, bins=1000):
+    hdul = fits.open(filename)
+    offset_data_plat = hdul[0].data
+    hdul.close()
+
+    if offset_data_plat is None:
+        print("Aucune image à afficher.")
+        return
+    
+    hist_values, bin_edges = np.histogram(offset_data_plat.flatten(), bins=bins)
+    # mean of values of pixels
+    mean_value = np.mean(offset_data_plat)
+    print(f"Valeur moyenne des pixels: {mean_value:.2f} ADU")
+
+    fig, (ax_im, ax_hist) = plt.subplots(1, 2, figsize=(12, 4))
+
+    im = ax_im.imshow(offset_data_plat, cmap='gray', origin='lower', 
+                    vmin=np.percentile(offset_data_plat, 5), 
+                    vmax=np.percentile(offset_data_plat, 99))
+    ax_im.set_title(f'Master Flat {galaxie_name}', fontsize=10)
+    ax_im.axis('off')
+    ax_im.grid(False)
+    cbar = fig.colorbar(im, ax=ax_im, fraction=0.046, pad=0.04)
+    cbar.set_label('ADU', fontsize=10)
+
+    ax_hist.hist(offset_data_plat.flatten(), bins=bins, color='blue')
+    ax_hist.axvline(x=mean_value, color='red', linestyle='--', label=f'Moyenne à {mean_value:.2f} ADU')
+    ax_hist.loglog()
+    ax_hist.set_xlabel('ADU', fontsize=10)
+    ax_hist.set_ylabel('Nombre de pixels', fontsize=10)
+    ax_hist.set_title('Histogramme Master Flat', fontsize=10)
+    ax_hist.grid(True)
+
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
 def process_filter(props):
     filter_name = props['filter_name']
     input_folder = props['input_folder']
@@ -233,8 +270,6 @@ def get_initial_image(props):
         return None
     
     return initial_image
-
-
 
 def plot_images_and_histograms(props):
     """
