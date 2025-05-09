@@ -125,13 +125,8 @@ def master_bias(list_bias, out_name ='', out_dir = '', overwrite = 1, sigma=5, o
         master_bias_list[i,:,:]= fits.getdata(b)
     # le master bias contient, en chaque pixel, la mediane de la valeur de ce pixel dans chacune des poses de bias 
     master_bias_no_sigma = np.nanmedian(master_bias_list,axis=0)
-    masked_data = sigma_clip(master_bias_list, sigma=sigma,maxiters=5,axis=0,masked=True)
-    master_bias = np.nanmedian(masked_data, axis=0)
-
-    # Plot des différences avec et sans sigma_clip
-    # plot_master_bias_difference_sigma(master_bias, master_bias_no_sigma, masked_data)
-    #sigma_list = np.array([0, 1, 2, 3, 4, 5])
-    # get_master_bias_difference_sigma(master_bias, master_bias_no_sigma, masked_data)
+    master_bias = sigma_clip(master_bias_list, sigma=sigma,maxiters=5,axis=0,masked=False)
+    master_bias = np.nanmedian(master_bias, axis=0)
 
     if len(out_name)>0:
         ## on enregistre le master bias dans un nouveau fichier fits

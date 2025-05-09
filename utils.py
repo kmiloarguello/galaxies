@@ -40,13 +40,31 @@ def plot_initial_filter_sequence(galaxy_name = 'M83',
     blue_files = sorted(glob.glob(f'./{pathname}/{galaxy_name}-Blue-*.fit'))
     green_files = sorted(glob.glob(f'./{pathname}/{galaxy_name}-Green-*.fit'))
 
-    # HA files are optional
+    initial_files_to_plot = []
+
+    # Add Red file if available
+    if 'Red' in filter_sequence and red_files and image_index < len(red_files):
+        print('red')
+        initial_files_to_plot.append(red_files[image_index])
+    
+    # Add Blue file if available
+    if 'Blue' in filter_sequence and blue_files and image_index < len(blue_files):
+        print('blue')
+        initial_files_to_plot.append(blue_files[image_index])
+    
+    # Add Green file if available
+    if 'Green' in filter_sequence and green_files and image_index < len(green_files):
+        print('green')
+        initial_files_to_plot.append(green_files[image_index])
+    
+    # Add HA file if available and requested
     if 'HA' in filter_sequence:
         ha_files = sorted(glob.glob(f'./{pathname}/{galaxy_name}-HA-*.fit'))
-
-    # We will plot the first image of each filter
-    initial_files_to_plot = [red_files[image_index], blue_files[image_index], green_files[image_index], ha_files[image_index] if 'HA' in filter_sequence else None]
-    files_to_plot = [f for f in initial_files_to_plot if f is not None]  # Remove None values
+        if ha_files and image_index < len(ha_files):
+            print('ha')
+            initial_files_to_plot.append(ha_files[image_index])
+    
+    files_to_plot = initial_files_to_plot  # All files are already valid
 
     if len(files_to_plot) == 0:
         print("Aucune image à afficher.")
@@ -77,6 +95,28 @@ def plot_initial_filter_sequence(galaxy_name = 'M83',
             ax_hist.set_ylabel('Nombre de pixels', fontsize=10)
     plt.tight_layout()
     plt.show()
+
+def get_exposure_times(filenames):
+    for filename in filenames:
+        exptime = get_exposure_time(filename['pathname'])
+        print(f"Temps de pose pour le filtre {filename['filter_name']} : {exptime} s")
+
+def get_exposure_time(filename):
+    """Obtenir le temps d'exposition à partir du nom de fichier."""
+    hdul = fits.open(filename)
+    offset_data_bias = hdul[0].data
+    hdul.close()
+
+    if offset_data_bias is None:
+        print("Aucune image à afficher.")
+        return
+    
+    header = hdul[0].header
+    exptime = header.get('EXPTIME', None)
+    if exptime is None:
+        print("Le temps d'exposition n'est pas trouvé dans l'en-tête de l'image.")
+        return None
+    return exptime
 
 def plot_bias_hist(filename, galaxie_name, bins=1000):
     hdul = fits.open(filename)
@@ -114,14 +154,19 @@ def plot_bias_hist(filename, galaxie_name, bins=1000):
     plt.tight_layout()
     plt.show()
 
+
 def plot_bias_hist_sigma_stack(files, sigma=2):
     # Load data first
     data_list = []
+    titles = []
+    has_sigma_list = []
 
-    for filename, _, _ in files:
+    for filename, title_prefix, has_sigma in files:
         with fits.open(filename) as hdul:
             data = hdul[0].data
-        data_list.append(data)
+            data_list.append(data)
+            titles.append(title_prefix + (str(sigma) if has_sigma else ""))
+            has_sigma_list.append(has_sigma)
 
     if len(data_list) == 0:
         print("Aucune image à afficher.")
@@ -131,52 +176,51 @@ def plot_bias_hist_sigma_stack(files, sigma=2):
     fig, axes = plt.subplots(2, 3, figsize=(18, 8), gridspec_kw={'height_ratios': [2, 1]})
 
     # Plot images and individual histograms
-    for i, (data, (filename, title_prefix, has_sigma)) in enumerate(zip(data_list, files)):
-        ax_img = axes[0, i]
-        ax_hist = axes[1, i]
+    for i, (data, title, has_sigma) in enumerate(zip(data_list, titles, has_sigma_list)):
+        # Only plot in the first two columns
+        if i < 2:  # Limit to first two columns
+            ax_img = axes[0, i]
+            ax_hist = axes[1, i]
 
-        im = ax_img.imshow(data, cmap='gray', origin='lower', 
-                        vmin=np.percentile(data, 5), vmax=np.percentile(data, 95))
-        cbar = fig.colorbar(im, ax=ax_img, fraction=0.046, pad=0.04)
-        cbar.set_label('ADU', fontsize=10)
-        ax_img.axis('off')
-        ax_img.set_anchor('C')
-        if has_sigma:
-            ax_img.set_title(title_prefix + str(sigma), fontsize=10)
-        else:
-            ax_img.set_title(title_prefix, fontsize=10)
+            im = ax_img.imshow(data, cmap='gray', origin='lower', 
+                            vmin=np.percentile(data, 5), vmax=np.percentile(data, 95))
+            cbar = fig.colorbar(im, ax=ax_img, fraction=0.046, pad=0.04)
+            cbar.set_label('ADU', fontsize=10)
+            ax_img.axis('off')
+            ax_img.set_anchor('C')
+            ax_img.set_title(title, fontsize=10)
 
-        ax_hist.hist(data.flatten(), bins=1000, color='blue')
-        ax_hist.loglog()
-        ax_hist.set_xlabel('ADU', fontsize=10)
-        ax_hist.set_ylabel('N', fontsize=10)
-        if has_sigma:
-            ax_hist.set_title('Hist avec sigma = ' + str(sigma), fontsize=10)
-        else:
-            ax_hist.set_title('Hist sans sigma', fontsize=10)
-        ax_hist.grid()
+            # Different colors for histograms
+            color = 'red' if has_sigma else 'blue'
+            ax_hist.hist(data.flatten(), bins=1000, color=color)
+            ax_hist.loglog()
+            ax_hist.set_xlabel('ADU', fontsize=10)
+            ax_hist.set_ylabel('N', fontsize=10)
+            ax_hist.set_title('Hist ' + ('avec' if has_sigma else 'sans') + ' sigma', fontsize=10)
+            ax_hist.grid()
 
     # Superposed histograms (bottom right cell)
-    colors = ['red', 'green']
+    colors = ['red', 'blue']  # Changed green to blue for consistency
     labels = [f'Avec sigma = {sigma}', 'Sans sigma']
     ax_superposed = axes[1, 2]
 
     for data, color, label in zip(data_list, colors, labels):
-        ax_superposed.hist(data.flatten(), bins=1000, color=color, label=label)
+        ax_superposed.hist(data.flatten(), bins=1000, color=color, alpha=0.7, label=label)
 
     ax_superposed.loglog()
     ax_superposed.set_xlabel('ADU', fontsize=10)
     ax_superposed.set_ylabel('N', fontsize=10)
-    ax_superposed.set_title('Superposition des hist', fontsize=10)
+    ax_superposed.set_title('Superposition des histogrammes', fontsize=10)
     ax_superposed.grid()
     ax_superposed.legend()
 
+    # Keep the top right cell empty
     axes[0, 2].axis('off')
 
     plt.tight_layout()
     plt.show()
 
-def plot_master_plat_hist(filename, galaxie_name, bins=1000):
+def plot_master_flat_hist(filename, galaxie_name, bins=1000):
     hdul = fits.open(filename)
     offset_data_plat = hdul[0].data
     hdul.close()
@@ -340,6 +384,113 @@ def plot_images_and_histograms(props):
     axes[1, 1].grid()
     axes[1, 1].set_xlim(1e0, 1e5)
     
+    plt.tight_layout()
+    plt.show()
+
+def plot_image_in_color(props):
+    """
+    Crée et affiche uniquement l'image composite RGB à partir des images filtrées.
+    
+    props: [
+        { 'filter_name': 'Red', 'color_init': 'red', 'color_final': 'red', 'galaxy_name': 'M83', 'os': os}, 
+        { 'filter_name': 'Green', 'color_init': 'green', 'color_final': 'green', 'galaxy_name': 'M83', 'os': os}, 
+        { 'filter_name': 'Blue', 'color_init': 'blue', 'color_final': 'blue', 'galaxy_name': 'M83', 'os': os},
+    ]
+    """
+    final_images = []
+    filter_names = []
+    galaxy_name = None
+    
+    for filter_props in props:
+        if not filter_props:
+            print("Erreur: filter_props doit être fourni.")
+            continue
+        filter_name = filter_props['filter_name']
+        color_init = filter_props['color_init']
+        color = filter_props['color_final']
+        galaxy_name = filter_props['galaxy_name']
+        os = filter_props['os']
+        if not filter_name or not color_init or not color or not galaxy_name or not os:
+            print("Erreur: filter_name, color_init et color et galaxy_name et os doivent être fournis.")
+            continue
+        final_image, _ = process_filter(filter_props)
+        final_images.append(final_image)
+        filter_names.append(filter_name)
+    
+    if len(final_images) < 3:
+        print("Erreur: trois filtres (Rouge, Vert, Bleu) sont nécessaires pour créer une image RGB.")
+        return None
+    
+    ## Images seems not aligned
+    # Alignement 
+    centers = []
+    for img in final_images:
+        y_center, x_center = np.unravel_index(np.argmax(img), img.shape)
+        centers.append((y_center, x_center))
+    
+    # Décalage
+    reference_center = centers[0] # Réference
+    shifts = []
+    for center in centers:
+        y_shift = reference_center[0] - center[0]
+        x_shift = reference_center[1] - center[1]
+        shifts.append((y_shift, x_shift))
+    
+    aligned_images = []
+    for i, img in enumerate(final_images):
+        y_shift, x_shift = shifts[i]
+        aligned = np.zeros_like(img)
+        
+        # Copier les données avec le décalage approprié
+        if y_shift >= 0 and x_shift >= 0:
+            aligned[y_shift:, x_shift:] = img[:img.shape[0]-y_shift, :img.shape[1]-x_shift]
+        elif y_shift >= 0 and x_shift < 0:
+            aligned[y_shift:, :img.shape[1]+x_shift] = img[:img.shape[0]-y_shift, -x_shift:]
+        elif y_shift < 0 and x_shift >= 0:
+            aligned[:img.shape[0]+y_shift, x_shift:] = img[-y_shift:, :img.shape[1]-x_shift]
+        else:  # y_shift < 0 and x_shift < 0
+            aligned[:img.shape[0]+y_shift, :img.shape[1]+x_shift] = img[-y_shift:, -x_shift:]
+        
+        aligned_images.append(aligned)
+    
+    # Images alignées pour la suite
+    shapes = [img.shape for img in aligned_images]
+    min_height = min(shape[0] for shape in shapes)
+    min_width = min(shape[1] for shape in shapes)
+    
+    # Recadrer les images
+    for i in range(len(aligned_images)):
+        if aligned_images[i].shape != (min_height, min_width):
+            aligned_images[i] = aligned_images[i][:min_height, :min_width]
+    
+    # Normaliser les images pour l'affichage
+    normalized_images = []
+    for img in aligned_images:
+        # Clip les valeurs extrêmes
+        p_low, p_high = np.percentile(img, [1, 99])
+        img_norm = np.clip(img, p_low, p_high)
+        
+        # Normalisation entre 0 et 1
+        img_norm = (img_norm - p_low) / (p_high - p_low)
+        normalized_images.append(img_norm)
+    
+    # RGB vide
+    rgb_image = np.zeros((min_height, min_width, 3))
+    
+    # Filtre (R, G, B)
+    filter_dict = {name: img for name, img in zip(filter_names, normalized_images)}
+    
+    if 'Red' in filter_dict:
+        rgb_image[:, :, 0] = filter_dict['Red']
+    if 'Green' in filter_dict:
+        rgb_image[:, :, 1] = filter_dict['Green']
+    if 'Blue' in filter_dict:
+        rgb_image[:, :, 2] = filter_dict['Blue']
+    
+    plt.figure(figsize=(10, 10))
+    plt.imshow(rgb_image, origin='lower')
+    plt.title(f"{galaxy_name} - Image composite RGB", fontsize=10)
+    plt.axis('off')
     plt.tight_layout()
     plt.show()
 
@@ -570,12 +721,10 @@ def plot_galaxies_with_incertitudes(magz_ellipt, reff_ellipt, magz_disk, reff_di
     #reff_err = 0.15 * reff_ellipt  # 15% uncertainty on radius
 
     # Plot with error bars
-    # ax.scatter(magz_ellipt,reff_ellipt,s = 200,alpha=0.7,color='red',)
-    ax.errorbar(magz_ellipt, reff_ellipt, 
-                xerr=magz_err, yerr=reff_err,
-                fmt='o', color='red', ecolor='gray', label = 'galaxies elliptiques, Gadotti+09', markersize=10)
+    ax.scatter(magz_ellipt,reff_ellipt,s = 200,alpha=0.7,color='red')
     if galaxy_type == 'elliptique':
-        ax.scatter(effective_magnitude, effective_radius, color='green', s=200, alpha=0.7, label='M87 effective radius')
+        ax.scatter(effective_magnitude, effective_radius, color='green', s=200, alpha=0.7, label=gallaxy_name)
+        ax.errorbar(effective_magnitude, effective_radius,xerr=0.1, yerr=0.15*effective_radius,fmt='none', ecolor='green', capsize=5)
     
     #ax.plot(x_fit_ell, y_fit_ell, color='darkred',
     #        label=f'Ellipticals fit: y = {coeffs_ell[0]:.2f} x + {coeffs_ell[1]:.2f}')
@@ -591,23 +740,15 @@ def plot_galaxies_with_incertitudes(magz_ellipt, reff_ellipt, magz_disk, reff_di
     ## Panneau de droite : galaxies disques
     ax1 = axes[1]
 
-
-    #x_d = disks["iMAGd"]
-    #y_d = disks["h"]
-    #magz_err = 0.1
-    #reff_err = 0.2 * reff_disk  # 20% uncertainty on scalelength
-
-    magz_err = [0.1] * len(magz_disk) # 0.1 mag uncertainty
-    reff_err = 0.15 * reff_disk  # 20% uncertainty on effective radius
-
-    ax1.errorbar(magz_disk, reff_disk, 
-                xerr=magz_err, yerr=reff_err, 
-                fmt='o', color='blue', ecolor='gray', label = 'galaxies disques, Gadotti+09', markersize=10)
-    #ax1.plot(x_fit_disk, y_fit_disk, color='darkblue',
+    # ax1.plot(x_fit_disk, y_fit_disk, color='darkblue',
     #        label=f'Disks fit: y = {coeffs_disk[0]:.2f} x + {coeffs_disk[1]:.2f}')
-    # ax1.scatter(magz_disk,reff_disk,color='blue',s = 200,alpha=0.7,)
+    ax1.scatter(magz_disk,reff_disk,s = 200,alpha=0.7,color='blue')
     if galaxy_type == 'spiral':
+        # ax1.errorbar(effective_magnitude, effective_radius, xerr=0.1, yerr=[0.15], color='green', s=200, alpha=0.7, label=gallaxy_name)
         ax1.scatter(effective_magnitude, effective_radius, color='green', s=200, alpha=0.7, label=gallaxy_name)
+        ax1.errorbar(effective_magnitude, effective_radius, 
+                    xerr=0.1, yerr=0.15*effective_radius,
+                    fmt='none', ecolor='green', capsize=5)
         
     # Add a point for the M87 galaxy effective radius (rad) and magnitude (mag_tot)
     #ax1.scatter(magnitudes['effective_magnitude'],rad, color='green', s=200, alpha=0.7, label='M83')
