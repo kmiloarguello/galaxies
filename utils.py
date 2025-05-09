@@ -1,4 +1,5 @@
 import os
+import warnings
 import glob
 import numpy as np
 import matplotlib.pyplot as plt
@@ -376,6 +377,8 @@ def return_flux(image,rad_list,pix_siz = 1,search_center = False,rm_background =
         positions = (centroid_quadratic(image, xpeak=default_center[0], ypeak=default_center[1],search_boxsize = 301))
     else:
         positions = default_center
+
+    warnings.filterwarnings('ignore')
         
     ## masking of pixels with value above the  value at the center of the galaxy
     mask = np.zeros(image.shape, dtype=bool)
@@ -455,8 +458,6 @@ def get_image_calibrated(filename):
         return None
     return image
 
-
-
 def calculate_magnitudes(flux_list, distance_mpc, rad_list, r_eff, zero_point=19.05):
     """
     Calculate apparent and absolute magnitudes from flux measurements.
@@ -503,13 +504,13 @@ def calculate_magnitudes(flux_list, distance_mpc, rad_list, r_eff, zero_point=19
 def plot_radial_magnitudes(magnitudes, rad_list, rad_eff, galaxy_name, filter_name):
     plt.figure(figsize=(6, 3))
     plt.plot(rad_list, magnitudes['absolute_magnitudes'])
-    plt.axvline(x=rad_eff, color='r', linestyle='--')
+    plt.axvline(x=rad_eff, color='r', linestyle='--', label='Rayon effective')
     axes = plt.gca()
     axes.set_xlabel('Madius (kpc)',fontsize=10)
     axes.set_ylabel('Magnitude',fontsize=10)
     plt.title(f'{galaxy_name} - {filter_name}', fontsize=10)
+    plt.legend()
     plt.show()
-
 
 def get_size_luminosity_data():
     magz_ellipt = np.array([-20.194174757281555, -20.32977354179308, -20.32977354179308, -20.65275025599211, -20.725565789972695, -20.85080874544903, -20.85080874544903, -20.444337122648665, -21.069578892976335, -21.225565789972695, -20.996439813410195, -21.132038597921724, -20.68381892824636, -20.809061883722695, -20.7569580078125, -20.631715052336165, -20.861164574484224, -20.81941771275789, -20.96537232630461, -20.840129370828276, -20.96537232630461, -21.07993472201153, -21.2987060546875, -21.46537232630461, -21.18414247383192, -21.31941771275789, -21.45501649726942, -21.39255679232403, -21.27766966588289, -21.621683954035195, -21.78834904050364, -21.78834904050364, -21.569578892976335, -21.694499488015776, -21.64239561210558, -21.486083984375, -21.27766966588289, -21.85080874544903, -21.74660099362864, -21.78834904050364, -21.95501649726942, -21.95501649726942, -21.95501649726942, -22.09061409663228, -22.11132575470267, -22.13203978307039, -21.85080874544903, -21.85080874544903, -21.975728155339805, -22.121683954035195, -22.28834904050364, -22.28834904050364, -22.35080874544903, -22.50712037317961, -22.49676454414442, -22.621683954035195, -22.65307380157767, -22.840452916413835, -22.99676454414442, -23.007442733616504, -22.861489305218445, -22.663429630612864, -22.580258267597088, -22.71553350652306, -22.851133476183254, -22.50712037317961, -22.50712037317961, -22.79902960027306, -22.95533885770631, -23.080258267597088, -22.621683954035195])
@@ -520,6 +521,107 @@ def get_size_luminosity_data():
     reff_disk = np.array([0.7305077602356541, 0.8258860468725422, 1.0417030627346284, 1.0950072414950993, 1.1408388132508438, 1.11516325144177, 1.2325687301272645, 1.289980232146166, 1.38114985899269, 1.5057631132147946, 1.4518236062556378, 1.2325687301272645, 1.38114985899269, 1.485250449087927, 1.4989672952164963, 1.38114985899269, 1.0089406900425395, 1.6268350154033149, 1.8730964839668607, 1.6490620643922178, 1.7899945596527838, 1.7899945596527838, 1.9162232418039469, 2.014570682567339, 2.0796845114930074, 2.117965666275469, 1.898965655779886, 1.7336978365480198, 1.822677419699831, 1.9339202836543326, 1.9339202836543326, 1.710329558814473, 1.5263359864110422, 1.710329558814473, 1.864642815068627, 2.1472161312600977, 2.0796845114930074, 2.2266666559835975, 2.3409471647843425, 2.4722507336621242, 2.3198644974871776, 2.3515602388162273, 2.6109191108787697, 2.5874047193770977, 2.744920465374478, 3.006585275737023, 2.7325320759002114, 2.6109191108787697, 2.6109191108787697, 2.529172605875244, 2.8340540390085125, 3.1037624465301996, 3.3081235870542285, 2.552157441689805, 2.2574189545368384, 2.02370407443461, 1.9964273754111086, 2.236762217913232, 2.3948458626620193, 2.552157441689805, 2.757365388038199, 2.770270467464691, 2.5641024451171974, 2.744920465374478, 2.952242772390612, 2.4722507336621242, 2.4722507336621242, 2.2676533395096774, 2.744920465374478, 3.0476639222715436, 3.292712962660338, 3.061927662997669, 3.3533221186314845, 3.6393734926206087, 3.3685249632036176, 3.5741155029434792, 3.323121960494278, 3.061927662997669, 3.061927662997669, 3.061927662997669, 3.033908784130542, 3.399634103135108, 3.277852273207597, 3.5903193511130898, 3.9142533363542706, 4.287386473619053, 3.8435057068153298, 3.8790008901929722, 4.287386473619053, 3.931999256067118, 4.115146288849563, 4.632116684648166, 5.050045411546503, 5.213270856495423, 5.788253460981814, 6.112916207937106, 6.057862221648741, 6.112916207937106, 6.340028981774115, 7.639762327420236, 3.8261586655104707, 1.9874170888852634, 2.0894178946417523, 4.98197786625372, 5.2852701785342315])
 
     return magz_ellipt, reff_ellipt, magz_disk, reff_disk
+
+def process_size_luminosity(props):
+    pixel_size = props['pixel_size']
+    distance_mpc = props['distance_mpc']
+    galaxy_name = props['galaxy_name']
+    filter_name = props['filter_name']
+    zero_point = props['zero_point']
+    color = props['color']
+
+    if pixel_size is None or distance_mpc is None or zero_point is None:
+        print('Function needs all the arguments')
+        return
+
+    pixel_size_kpc = get_pixel_size_in_kpc(pixel_size, distance_mpc) # kpc/pixel
+    print(f"Taille du pixel : {pixel_size_kpc:.3f} kpc/pixel")
+
+    image_calibrated = get_image_calibrated(f'./Processed/{galaxy_name}_{filter_name}_final_calibrated.fits')
+
+    if image_calibrated is None:
+        print("Aucune image à afficher.")
+        return
+
+    rad_list = np.linspace(0.1,10,10)
+    flux_list, _ = return_flux(image_calibrated,rad_list,pixel_size_kpc,search_center=True,rm_background=True,diagnostic=True, galaxy_name=galaxy_name, filter_name=filter_name, color=color)
+    lum,rad,rad_tot = size_luminosity(rad_list,flux_list)
+    print(f"Le flux totale : {lum[0]:.2f} ADU")
+    print(f"Effective radius : {rad[0]:.2f} kpc")
+    print(f"Minimum radius : {rad_tot[0]:.2f} kpc")
+    magnitudes = calculate_magnitudes(flux_list, distance_mpc, rad_list, rad, zero_point)
+    print(f"La moyenne des magnitudes se trouve autour de {magnitudes['apparent_magnitudes'].mean():.2f} mag AB")
+    print(f"Magnitude effective {magnitudes['effective_magnitude']:.2f} mag AB")
+    print(f"La moyenne des magnitudes à 10pc de la source se trouve autour de {magnitudes['absolute_magnitudes'].mean():.2f} mag")
+    plot_radial_magnitudes(magnitudes, rad_list, rad, galaxy_name, filter_name)
+
+def plot_galaxies_with_incertitudes(magz_ellipt, reff_ellipt, magz_disk, reff_disk, effective_magnitude, effective_radius, galaxy_type='elliptique', gallaxy_name='M83'):
+    fig, axes = plt.subplots(1,2,figsize = (18,8),sharex=True,sharey=True)
+
+    ## Panneau de gauche : galaxies elliptiques
+    ax = axes[0]
+
+    # Erreur bars for elliptical galaxies
+    # From Gadotti+09 σ_{mag}​≈0.1 mag
+    magz_err = [0.1] * len(magz_ellipt) # 0.1 mag uncertainty
+    reff_err = 0.15 * reff_ellipt  # 20% uncertainty on effective radius
+
+    #magz_err = 0.1  # 0.1 mag uncertainty
+    #reff_err = 0.15 * reff_ellipt  # 15% uncertainty on radius
+
+    # Plot with error bars
+    # ax.scatter(magz_ellipt,reff_ellipt,s = 200,alpha=0.7,color='red',)
+    ax.errorbar(magz_ellipt, reff_ellipt, 
+                xerr=magz_err, yerr=reff_err,
+                fmt='o', color='red', ecolor='gray', label = 'galaxies elliptiques, Gadotti+09', markersize=10)
+    if galaxy_type == 'elliptique':
+        ax.scatter(effective_magnitude, effective_radius, color='green', s=200, alpha=0.7, label='M87 effective radius')
+    
+    #ax.plot(x_fit_ell, y_fit_ell, color='darkred',
+    #        label=f'Ellipticals fit: y = {coeffs_ell[0]:.2f} x + {coeffs_ell[1]:.2f}')
+
+    ax.legend(loc = 'lower left', fontsize = 16)
+    ax.set_xlim(-20,-24)
+    ax.set_ylim(0.5,20)
+    ax.set_yscale('log')
+    ax.set_xlabel('Magnitude (AB)',fontsize=16)
+    ax.set_ylabel('rayon effectif (kpc)',fontsize=16)
+    ax.set_title('Galaxies elliptiques',fontsize = 20)
+    ax.grid()
+    ## Panneau de droite : galaxies disques
+    ax1 = axes[1]
+
+
+    #x_d = disks["iMAGd"]
+    #y_d = disks["h"]
+    #magz_err = 0.1
+    #reff_err = 0.2 * reff_disk  # 20% uncertainty on scalelength
+
+    magz_err = [0.1] * len(magz_disk) # 0.1 mag uncertainty
+    reff_err = 0.15 * reff_disk  # 20% uncertainty on effective radius
+
+    ax1.errorbar(magz_disk, reff_disk, 
+                xerr=magz_err, yerr=reff_err, 
+                fmt='o', color='blue', ecolor='gray', label = 'galaxies disques, Gadotti+09', markersize=10)
+    #ax1.plot(x_fit_disk, y_fit_disk, color='darkblue',
+    #        label=f'Disks fit: y = {coeffs_disk[0]:.2f} x + {coeffs_disk[1]:.2f}')
+    # ax1.scatter(magz_disk,reff_disk,color='blue',s = 200,alpha=0.7,)
+    if galaxy_type == 'spiral':
+        ax1.scatter(effective_magnitude, effective_radius, color='green', s=200, alpha=0.7, label=gallaxy_name)
+        
+    # Add a point for the M87 galaxy effective radius (rad) and magnitude (mag_tot)
+    #ax1.scatter(magnitudes['effective_magnitude'],rad, color='green', s=200, alpha=0.7, label='M83')
+    ax1.legend(loc = 'upper left', fontsize = 16)
+    ax1.set_xlim(-20.3,-23.7)
+    ax1.set_ylim(0.5,20)
+    ax1.set_yscale('log')
+    ax1.set_xlabel('Magnitude (AB)',fontsize=16)
+    ax1.set_title('Galaxies disques',fontsize = 20)
+    ax1.grid()
+    for i in range(2):
+        axes[i].tick_params(axis='both', which='major', labelsize=14)
+        axes[i].tick_params(axis='both', which='minor', labelsize=14)
+    plt.show()
 
 # --------------------
 # UNITÉS D'ASTRONOMIE
