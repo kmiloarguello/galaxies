@@ -44,17 +44,14 @@ def plot_initial_filter_sequence(galaxy_name = 'M83',
 
     # Add Red file if available
     if 'Red' in filter_sequence and red_files and image_index < len(red_files):
-        print('red')
         initial_files_to_plot.append(red_files[image_index])
     
     # Add Blue file if available
     if 'Blue' in filter_sequence and blue_files and image_index < len(blue_files):
-        print('blue')
         initial_files_to_plot.append(blue_files[image_index])
     
     # Add Green file if available
     if 'Green' in filter_sequence and green_files and image_index < len(green_files):
-        print('green')
         initial_files_to_plot.append(green_files[image_index])
     
     # Add HA file if available and requested
@@ -153,7 +150,6 @@ def plot_bias_hist(filename, galaxie_name, bins=1000):
     plt.legend()
     plt.tight_layout()
     plt.show()
-
 
 def plot_bias_hist_sigma_stack(files, sigma=2):
     # Load data first
@@ -263,14 +259,14 @@ def process_filter(props):
     bias_path = props['bias_path']
     flat_folder = props['flat_folder']
     output_folder = props['output_folder']
+    galaxy_name = props['galaxy_name']
     os = props['os']
     if not filter_name or not input_folder or not bias_path or not flat_folder or not output_folder or not os:
         print("Erreur: filter_name, input_folder, bias_path, flat_folder et output_folder doivent être fournis.")
         return
 
     # 1. Créer la liste des fichiers pour ce filtre
-    pattern = os.path.join(input_folder, f'M83-{filter_name}-*.fit')
-    print('pattern', pattern)
+    pattern = os.path.join(input_folder, f'{galaxy_name}-{filter_name}-*.fit')
     file_list = sorted(glob.glob(pattern))
 
     if not file_list:
@@ -279,28 +275,36 @@ def process_filter(props):
 
     print(f"Trouvé {len(file_list)} fichiers pour le filtre {filter_name}.")
 
-    # 2. Trouver le master flat correspondant
-    master_flat = os.path.join(flat_folder, f'master_flat--{filter_name}-T32.fits')
+    if props['override_master_filename']:
+        # 1.1. Si le nom du master flat est fourni, l'utiliser
+        master_flat = os.path.join(flat_folder, props['override_master_filename'])
+    else:
+        # 2. Trouver le master flat correspondant
+        master_flat = os.path.join(flat_folder, f'master_flat--{filter_name}-T32.fits')
+
+    if not os.path.exists(master_flat):
+        print(f"Le master flat {master_flat} n'existe pas !")
+        return
 
     # 3. Définir le nom de l'image finale
-    output_name = f'M83_{filter_name}_final_calibrated.fits'
+    output_name = f'{galaxy_name}_{filter_name}_final_calibrated.fits'
 
     # 4. Appliquer stacking (calibration + empilement)
     final_image, saved_path = pr.stacking(file_list, bias_path, master_flat, out_name=output_name, out_dir=output_folder)
-    
+
     return final_image, saved_path
 
 def get_initial_image(props):
-
     filter_name = props['filter_name']
     input_folder = props['input_folder']
+    galaxy_name = props['galaxy_name']
     os = props['os']
     if not filter_name or not input_folder or not os:
         print("Erreur: filter_name, input_folder et os doivent être fournis.")
         return None
 
     # 1. Créer la liste des fichiers pour ce filtre
-    pattern = os.path.join(input_folder, f'M83-{filter_name}-*.fit')
+    pattern = os.path.join(input_folder, f'{galaxy_name}-{filter_name}-*.fit')
     file_list = sorted(glob.glob(pattern))
 
     if not file_list:
@@ -386,6 +390,78 @@ def plot_images_and_histograms(props):
     
     plt.tight_layout()
     plt.show()
+
+def plot_custom_images_and_histograms(props):
+    """
+    Plots the initial and final images and their histograms for a given filter.
+    
+    Parameters:
+        filter_name (str): The filter name (e.g., 'Red', 'Blue', 'Green', 'HA').
+        color_init (str): Color for the initial image histogram.
+        color_final (str): Color for the final image histogram.
+    """
+    galaxy_name = props['galaxy_name']
+    filter_name = props['filter_name']
+    color_init = props['color_init']
+    color_final = props['color_final']
+    initial_filename = props['initial_filename']
+    final_filename = props['final_filename']
+
+    file_list_initial = sorted(glob.glob(initial_filename))
+    initial_image = fits.getdata(file_list_initial[0])
+
+    if initial_image is None:
+        print(f"Aucune image brute trouvée pour le filtre {filter_name} !")
+        return None
+    
+    file_list_final = sorted(glob.glob(final_filename))
+    final_image = fits.getdata(file_list_final[0])
+
+    if final_image is None:
+        print(f"Aucune image brute trouvée pour le filtre {filter_name} !")
+        return None
+    
+    # Create figure and axes
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8), gridspec_kw={'height_ratios': [2, 1]})
+    
+    # Initial image
+    im_init = axes[0, 0].imshow(initial_image, cmap='gray', origin='lower',
+                                vmin=np.percentile(initial_image, 5),
+                                vmax=np.percentile(initial_image, 99))
+    cbar = fig.colorbar(im_init, ax=axes[0, 0], pad=0.04, fraction=0.046)
+    cbar.set_label('ADU', fontsize=10)
+    axes[0, 0].set_title(f'{galaxy_name} - Image brute - {filter_name}', fontsize=10)
+    axes[0, 0].axis('off')
+    
+    # Final image
+    im_final = axes[0, 1].imshow(final_image, cmap='gray', origin='lower',
+                                 vmin=np.percentile(final_image, 5),
+                                 vmax=np.percentile(final_image, 99))
+    cbar = fig.colorbar(im_final, ax=axes[0, 1], pad=0.04, fraction=0.046)
+    cbar.set_label('ADU', fontsize=10)
+    axes[0, 1].set_title(f'{galaxy_name} - Image finale - {filter_name}', fontsize=10)
+    axes[0, 1].axis('off')
+    
+    # Initial histogram
+    axes[1, 0].hist(initial_image.flatten(), bins=1000, color=color_init)
+    axes[1, 0].loglog()
+    axes[1, 0].set_xlabel('ADU', fontsize=10)
+    axes[1, 0].set_ylabel('N', fontsize=10)
+    axes[1, 0].set_title(f'{galaxy_name} - Histogramme image brute - {filter_name}', fontsize=10)
+    axes[1, 0].grid()
+    
+    # Final histogram
+    axes[1, 1].hist(final_image.flatten(), bins=1000, color=color_final)
+    axes[1, 1].loglog()
+    axes[1, 1].set_xlabel('ADU', fontsize=10)
+    axes[1, 1].set_ylabel('N', fontsize=10)
+    axes[1, 1].set_title(f'{galaxy_name} - Histogramme image finale - {filter_name}', fontsize=10)
+    axes[1, 1].grid()
+    axes[1, 1].set_xlim(1e0, 1e5)
+    
+    plt.tight_layout()
+    plt.show()
+
 
 def plot_image_in_color(props):
     """
