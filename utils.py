@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 import processing as  pr
+from astroquery.vizier import Vizier
+import pandas as pd
 from photutils.aperture import aperture_photometry, CircularAperture
 from photutils.centroids import centroid_quadratic
 
@@ -402,8 +404,6 @@ def plot_custom_images_and_histograms(props):
     """
     galaxy_name = props['galaxy_name']
     filter_name = props['filter_name']
-    color_init = props['color_init']
-    color_final = props['color_final']
     initial_filename = props['initial_filename']
     final_filename = props['final_filename']
 
@@ -422,42 +422,25 @@ def plot_custom_images_and_histograms(props):
         return None
     
     # Create figure and axes
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8), gridspec_kw={'height_ratios': [2, 1]})
-    
-    # Initial image
-    im_init = axes[0, 0].imshow(initial_image, cmap='gray', origin='lower',
-                                vmin=np.percentile(initial_image, 5),
-                                vmax=np.percentile(initial_image, 99))
-    cbar = fig.colorbar(im_init, ax=axes[0, 0], pad=0.04, fraction=0.046)
+    fig, axes = plt.subplots(1, 2, figsize=(18, 8), sharex=True, sharey=True)
+
+    # Initial image - avec axes[0] au lieu de axes[0, 0]
+    im_init = axes[0].imshow(initial_image, cmap='gray', origin='lower',
+                             vmin=np.percentile(initial_image, 5),
+                             vmax=np.percentile(initial_image, 99))
+    cbar = fig.colorbar(im_init, ax=axes[0], pad=0.04, fraction=0.046)
     cbar.set_label('ADU', fontsize=10)
-    axes[0, 0].set_title(f'{galaxy_name} - Image brute - {filter_name}', fontsize=10)
-    axes[0, 0].axis('off')
+    axes[0].set_title(f'{galaxy_name} - Image brute - {filter_name}', fontsize=10)
+    axes[0].axis('off')
     
-    # Final image
-    im_final = axes[0, 1].imshow(final_image, cmap='gray', origin='lower',
-                                 vmin=np.percentile(final_image, 5),
-                                 vmax=np.percentile(final_image, 99))
-    cbar = fig.colorbar(im_final, ax=axes[0, 1], pad=0.04, fraction=0.046)
+    # Final image - avec axes[1] au lieu de axes[0, 1]
+    im_final = axes[1].imshow(final_image, cmap='gray', origin='lower',
+                              vmin=np.percentile(final_image, 5),
+                              vmax=np.percentile(final_image, 99))
+    cbar = fig.colorbar(im_final, ax=axes[1], pad=0.04, fraction=0.046)
     cbar.set_label('ADU', fontsize=10)
-    axes[0, 1].set_title(f'{galaxy_name} - Image finale - {filter_name}', fontsize=10)
-    axes[0, 1].axis('off')
-    
-    # Initial histogram
-    axes[1, 0].hist(initial_image.flatten(), bins=1000, color=color_init)
-    axes[1, 0].loglog()
-    axes[1, 0].set_xlabel('ADU', fontsize=10)
-    axes[1, 0].set_ylabel('N', fontsize=10)
-    axes[1, 0].set_title(f'{galaxy_name} - Histogramme image brute - {filter_name}', fontsize=10)
-    axes[1, 0].grid()
-    
-    # Final histogram
-    axes[1, 1].hist(final_image.flatten(), bins=1000, color=color_final)
-    axes[1, 1].loglog()
-    axes[1, 1].set_xlabel('ADU', fontsize=10)
-    axes[1, 1].set_ylabel('N', fontsize=10)
-    axes[1, 1].set_title(f'{galaxy_name} - Histogramme image finale - {filter_name}', fontsize=10)
-    axes[1, 1].grid()
-    axes[1, 1].set_xlim(1e0, 1e5)
+    axes[1].set_title(f'{galaxy_name} - Image calibrée - {filter_name}', fontsize=10)
+    axes[1].axis('off')
     
     plt.tight_layout()
     plt.show()
@@ -482,16 +465,40 @@ def plot_image_in_color(props):
             print("Erreur: filter_props doit être fourni.")
             continue
         filter_name = filter_props['filter_name']
-        color_init = filter_props['color_init']
-        color = filter_props['color_final']
-        galaxy_name = filter_props['galaxy_name']
-        os = filter_props['os']
-        if not filter_name or not color_init or not color or not galaxy_name or not os:
-            print("Erreur: filter_name, color_init et color et galaxy_name et os doivent être fournis.")
-            continue
-        final_image, _ = process_filter(filter_props)
-        final_images.append(final_image)
         filter_names.append(filter_name)
+        
+        # Si l'image finale est déjà fournie dans le dictionnaire
+        if 'final_filename' in filter_props and filter_props['final_filename'] is not None:
+            try:
+                final_image_file = glob.glob(filter_props['final_filename'])
+                if not final_image_file:
+                    print(f"Aucun fichier trouvé pour le chemin {filter_props['final_filename']} !")
+                    continue
+                    
+                final_image = fits.getdata(final_image_file[0])
+                if final_image is None:
+                    print(f"Impossible de charger l'image pour le filtre {filter_name} !")
+                    continue
+                    
+                galaxy_name = filter_props.get('galaxy_name', galaxy_name)
+                final_images.append(final_image)
+            except Exception as e:
+                print(f"Erreur lors du chargement du fichier {filter_props['final_image']}: {str(e)}")
+                continue
+        else:
+            # Sinon, utiliser process_filter pour l'obtenir
+            color_init = filter_props['color_init']
+            color = filter_props['color_final']
+            galaxy_name = filter_props['galaxy_name']
+            os = filter_props['os']
+            
+            if not filter_name or not color_init or not color or not galaxy_name or not os:
+                print("Erreur: filter_name, color_init, color, galaxy_name et os doivent être fournis.")
+                continue
+                
+            final_image, _ = process_filter(filter_props)
+            
+        final_images.append(final_image)
     
     if len(final_images) < 3:
         print("Erreur: trois filtres (Rouge, Vert, Bleu) sont nécessaires pour créer une image RGB.")
@@ -782,25 +789,16 @@ def process_size_luminosity(props):
     print(f"La moyenne des magnitudes à 10pc de la source se trouve autour de {magnitudes['absolute_magnitudes'].mean():.2f} mag")
     plot_radial_magnitudes(magnitudes, rad_list, rad, galaxy_name, filter_name)
 
-def plot_galaxies_with_incertitudes(magz_ellipt, reff_ellipt, magz_disk, reff_disk, effective_magnitude, effective_radius, galaxy_type='elliptique', gallaxy_name='M83'):
+def plot_galaxies_rayon_magnitude(magz_ellipt, reff_ellipt, magz_disk, reff_disk, effective_magnitude, effective_radius, galaxy_type='elliptique', gallaxy_name='M83'):
     fig, axes = plt.subplots(1,2,figsize = (18,8),sharex=True,sharey=True)
 
     ## Panneau de gauche : galaxies elliptiques
     ax = axes[0]
 
-    # Erreur bars for elliptical galaxies
-    # From Gadotti+09 σ_{mag}​≈0.1 mag
-    magz_err = [0.1] * len(magz_ellipt) # 0.1 mag uncertainty
-    reff_err = 0.15 * reff_ellipt  # 20% uncertainty on effective radius
-
-    #magz_err = 0.1  # 0.1 mag uncertainty
-    #reff_err = 0.15 * reff_ellipt  # 15% uncertainty on radius
-
     # Plot with error bars
     ax.scatter(magz_ellipt,reff_ellipt,s = 200,alpha=0.7,color='red')
     if galaxy_type == 'elliptique':
         ax.scatter(effective_magnitude, effective_radius, color='green', s=200, alpha=0.7, label=gallaxy_name)
-        ax.errorbar(effective_magnitude, effective_radius,xerr=0.1, yerr=0.15*effective_radius,fmt='none', ecolor='green', capsize=5)
     
     #ax.plot(x_fit_ell, y_fit_ell, color='darkred',
     #        label=f'Ellipticals fit: y = {coeffs_ell[0]:.2f} x + {coeffs_ell[1]:.2f}')
@@ -822,10 +820,7 @@ def plot_galaxies_with_incertitudes(magz_ellipt, reff_ellipt, magz_disk, reff_di
     if galaxy_type == 'spiral':
         # ax1.errorbar(effective_magnitude, effective_radius, xerr=0.1, yerr=[0.15], color='green', s=200, alpha=0.7, label=gallaxy_name)
         ax1.scatter(effective_magnitude, effective_radius, color='green', s=200, alpha=0.7, label=gallaxy_name)
-        ax1.errorbar(effective_magnitude, effective_radius, 
-                    xerr=0.1, yerr=0.15*effective_radius,
-                    fmt='none', ecolor='green', capsize=5)
-        
+
     # Add a point for the M87 galaxy effective radius (rad) and magnitude (mag_tot)
     #ax1.scatter(magnitudes['effective_magnitude'],rad, color='green', s=200, alpha=0.7, label='M83')
     ax1.legend(loc = 'upper left', fontsize = 16)
@@ -838,6 +833,95 @@ def plot_galaxies_with_incertitudes(magz_ellipt, reff_ellipt, magz_disk, reff_di
     for i in range(2):
         axes[i].tick_params(axis='both', which='major', labelsize=14)
         axes[i].tick_params(axis='both', which='minor', labelsize=14)
+    plt.show()
+
+def load_data_from_gadotti():
+    # Set Vizier row limit (you can change or set to -1 for all available rows)
+    Vizier.ROW_LIMIT = -1
+
+    # Define only the columns we need
+    columns = [
+        "MType", "MType2",  # Morphology
+        "gMAGd", "rMAGd", "iMAGd",  # Disk magnitudes
+        "gMAGbu", "rMAGbu", "iMAGbu",  # Bulge magnitudes
+        "h", "re",  # Disk scalelength and Bulge effective radius
+        "Blg/T", "D/T", "Bar/T",  # Component ratios
+        "z",  # Redshift
+        "(g-i)d", "(g-i)bu"  # Color indices
+    ]
+
+    # Load the table: J/MNRAS/393/1531 (Dimitri A. Gadotti 2009)
+    catalog_id = "J/MNRAS/393/1531"
+    vizier = Vizier(columns=columns)
+    result = vizier.get_catalogs(catalog_id)
+
+    # The main table is usually the first one
+    data = result[0].to_pandas()
+
+    # Preview the dataframe
+    print("Total entries:", len(data))
+    print(data.head())
+
+    # Regroupement des galaxies selon leur type morphologique 
+    # 1. Galaxies dominées par le bulbe
+    bulge_dominated = data[data["MType"].isin(["elliptical", "classical"])]
+    x_bulge = bulge_dominated["iMAGbu"]  # Magnitude du bulbe
+    y_bulge = bulge_dominated["re"]      # Rayon effectif du bulbe
+
+    # 2. Galaxies dominées par le disque
+    disk_dominated = data[data["MType"].isin(["pseudo-bulge", "bulgeless", "barred", "unbarred"])]
+    x_disk = disk_dominated["iMAGd"]    # Magnitude du disque
+    y_disk = disk_dominated["h"]        # Échelle de longueur du disque
+
+    return data, x_bulge, y_bulge, x_disk, y_disk
+
+def plot_relations_taille_luminosite_gadotti(props):
+    x_bulge = props['x_bulge']
+    y_bulge = props['y_bulge']
+    x_disk = props['x_disk'] 
+    y_disk = props['y_disk']
+    magnitudes = props['magnitudes']
+    galaxy_type = props['galaxy_type']
+    rad = props['rad']
+
+    # Création de la figure comparative
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
+
+    # Panneau de gauche : Galaxies dominées par le bulbe
+    xerr_bulge = [0.1] * len(x_bulge)
+    yerr_bulge = 0.2 * y_bulge
+    ax1.scatter(x_bulge,y_bulge,s = 200,alpha=0.7,color='red')
+    ax1.errorbar(x_bulge, y_bulge, xerr=xerr_bulge, yerr=yerr_bulge, 
+                fmt='o', ecolor='gray', alpha=0.6, markersize=4, label='Gadotti (2009)')
+
+    ax1.set_title("Galaxies dominées par le bulbe")
+    ax1.set_xlabel("Magnitude du bulbe (iMAGbu)")
+    ax1.set_ylabel("Rayon effectif (kpc)")
+    ax1.invert_xaxis()
+    ax1.grid(True)
+
+    # Panneau de droite : Galaxies dominées par le disque
+    xerr_disk = [0.1] * len(x_disk)
+    yerr_disk = 0.2 * y_disk
+    ax2.scatter(x_disk,y_disk,s = 200,alpha=0.7,color='blue')
+    ax2.errorbar(x_disk, y_disk, xerr=xerr_disk, yerr=yerr_disk, 
+                fmt='o', ecolor='gray', alpha=0.6, markersize=4, label='Gadotti (2009)')
+
+    # Ajout de notre point de mesure M83
+    if galaxy_type == 'spiral':
+        ax2.scatter(magnitudes['effective_magnitude'], rad, color='green', s=100, 
+                alpha=0.9, label='M83')
+        ax2.errorbar(magnitudes['effective_magnitude'], rad, xerr=[0.1], 
+                    yerr=[0.2 * rad[0]], fmt='o', color='green', ecolor='green', alpha=0.9)
+
+    ax2.set_title("Galaxies dominées par le disque")
+    ax2.set_xlabel("Magnitude du disque (iMAGd)")
+    ax2.invert_xaxis()
+    ax2.grid(True)
+    ax2.legend()
+
+    plt.suptitle("Relations Taille-Luminosité par composante galactique", fontsize=14)
+    plt.tight_layout()
     plt.show()
 
 # --------------------
